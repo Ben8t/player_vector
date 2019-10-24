@@ -3,7 +3,7 @@
 
 ## Build Docker image
 
-`docker buidl -t player_vector .`
+`docker build -t player_vector .`
 
 ## Run
 
