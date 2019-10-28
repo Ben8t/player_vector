@@ -5,6 +5,8 @@ import scipy.spatial
 from sklearn import preprocessing
 from sklearn.decomposition import PCA
 
+from src.similarity import SimilarEngine
+
 """
 
 # Player Similarity
@@ -16,80 +18,53 @@ to gather a huge player database with features (mainly stats) to define players,
 
 """
 
-data = pandas.read_csv("data/players_20.csv")
+fifa_data = pandas.read_csv("data/players_20.csv")
+whoscored_data = pandas.read_csv("data/full_2018_2019.csv")
 
-def process_data(data):
+@streamlit.cache(persist=True)
+def process_fifa_data(data):
     features = ["weight_kg", "height_cm", "pace", "shooting","passing","dribbling","defending","physic","gk_diving","gk_handling","gk_kicking","gk_reflexes","gk_speed","gk_positioning","attacking_crossing","attacking_finishing","attacking_heading_accuracy","attacking_short_passing","attacking_volleys","skill_dribbling","skill_curve","skill_fk_accuracy","skill_long_passing","skill_ball_control","movement_acceleration","movement_sprint_speed","movement_agility","movement_reactions","movement_balance","power_shot_power","power_jumping","power_stamina","power_strength","power_long_shots","mentality_aggression","mentality_interceptions","mentality_positioning","mentality_vision","mentality_penalties","mentality_composure","defending_marking","defending_standing_tackle","defending_sliding_tackle","goalkeeping_diving","goalkeeping_handling","goalkeeping_kicking","goalkeeping_positioning","goalkeeping_reflexes"]
-    data[features] = data[features].div(data.overall, axis=0)
+    processed_data = data.copy()
+    processed_data[features] = processed_data[features].div(data.overall, axis=0)
     imputer = preprocessing.Imputer(missing_values='NaN', strategy='mean', axis=0)
-    data[features] = imputer.fit_transform(data[features])
+    processed_data[features] = imputer.fit_transform(processed_data[features])
+    processed_data[features] = processed_data[features].apply(preprocessing.scale)
+    pca = PCA(n_components=2)
+    pca.fit(processed_data[features])
+    processed_data["component_1"], processed_data["component_2"] = pca.transform(processed_data[features])[:,0], pca.transform(processed_data[features])[:,1]
+    return processed_data.copy()[["short_name", "player_positions"] + features] , pca.explained_variance_ratio_
+
+@streamlit.cache(persist=True)
+def process_whoscored_data(data):
+    features = ["goals", "assists", "shot_per_game", "key_passes_per_game", "dribbles_per_game", "fouled_per_game", "offside_per_game", "dispossessed_per_game", "bad_control_per_game", "tackles_per_game", "interception_per_game", "fouls_per_game", "offsides_per_game", "clear_per_game", "dribbled_past_per_game", "blocks_per_game", "own_goal"]
+    data = data.copy()
     data[features] = data[features].apply(preprocessing.scale)
     pca = PCA(n_components=2)
     pca.fit(data[features])
     data["component_1"], data["component_2"] = pca.transform(data[features])[:,0], pca.transform(data[features])[:,1]
-    return data.copy()[["short_name", "player_positions"] + features] , pca.explained_variance_ratio_
+    return data.copy()[["player", "team", "age", "league"] + features], pca.explained_variance_ratio_
 
-player_vectors, pca_result = process_data(data)
+
+"""
+Load data
+"""
+data_to_load = streamlit.radio("Data to load", ["Fifa", "WhoScored"])
+if data_to_load == "Fifa":
+    player_vectors, pca_result = process_fifa_data(fifa_data)
+    vector_keys = ["weight_kg", "height_cm", "pace", "shooting","passing","dribbling","defending","physic","gk_diving","gk_handling","gk_kicking","gk_reflexes","gk_speed", "gk_positioning","attacking_crossing","attacking_finishing","attacking_heading_accuracy","attacking_short_passing","attacking_volleys","skill_dribbling","skill_curve","skill_fk_accuracy","skill_long_passing","skill_ball_control","movement_acceleration","movement_sprint_speed","movement_agility","movement_reactions","movement_balance","power_shot_power","power_jumping","power_stamina","power_strength","power_long_shots","mentality_aggression","mentality_interceptions","mentality_positioning","mentality_vision","mentality_penalties","mentality_composure","defending_marking","defending_standing_tackle","defending_sliding_tackle","goalkeeping_diving","goalkeeping_handling","goalkeeping_kicking","goalkeeping_positioning","goalkeeping_reflexes"]
+    name_column = "short_name"
+else:
+    player_vectors, pca_result = process_whoscored_data(whoscored_data)
+    vector_keys = ["goals", "assists", "shot_per_game", "key_passes_per_game", "dribbles_per_game", "fouled_per_game", "offside_per_game", "dispossessed_per_game", "bad_control_per_game", "tackles_per_game", "interception_per_game", "fouls_per_game", "offsides_per_game", "clear_per_game", "dribbled_past_per_game", "blocks_per_game", "own_goal"]
+    name_column = "player"
+
+similar_engine = SimilarEngine(player_vectors, vector_keys, name_column)
+
 streamlit.write(player_vectors.head())
 player_vectors.to_csv("data/processed_data.csv", index=False)
 
 streamlit.write(f"Applying PCA here is not that good (PCA explained variance ratio : `{pca_result}`). We could up the number of component, but only to reduce the overall data dimension (can't be used to 2D plot...).")
 
-def get_player_vector(data, name):
-    vector_keys = ["weight_kg", "height_cm", "pace", "shooting","passing","dribbling","defending","physic","gk_diving","gk_handling","gk_kicking","gk_reflexes","gk_speed","gk_positioning","attacking_crossing","attacking_finishing","attacking_heading_accuracy","attacking_short_passing","attacking_volleys","skill_dribbling","skill_curve","skill_fk_accuracy","skill_long_passing","skill_ball_control","movement_acceleration","movement_sprint_speed","movement_agility","movement_reactions","movement_balance","power_shot_power","power_jumping","power_stamina","power_strength","power_long_shots","mentality_aggression","mentality_interceptions","mentality_positioning","mentality_vision","mentality_penalties","mentality_composure","defending_marking","defending_standing_tackle","defending_sliding_tackle","goalkeeping_diving","goalkeeping_handling","goalkeeping_kicking","goalkeeping_positioning","goalkeeping_reflexes"]
-    return data[data["short_name"]==name][vector_keys].get_values()
-
-def find_similar_players(data, player, distance_callback=scipy.spatial.distance.cosine, n=2):
-    vector_keys = ["weight_kg", "height_cm", "pace", "shooting","passing","dribbling","defending","physic","gk_diving","gk_handling","gk_kicking","gk_reflexes","gk_speed","gk_positioning","attacking_crossing","attacking_finishing","attacking_heading_accuracy","attacking_short_passing","attacking_volleys","skill_dribbling","skill_curve","skill_fk_accuracy","skill_long_passing","skill_ball_control","movement_acceleration","movement_sprint_speed","movement_agility","movement_reactions","movement_balance","power_shot_power","power_jumping","power_stamina","power_strength","power_long_shots","mentality_aggression","mentality_interceptions","mentality_positioning","mentality_vision","mentality_penalties","mentality_composure","defending_marking","defending_standing_tackle","defending_sliding_tackle","goalkeeping_diving","goalkeeping_handling","goalkeeping_kicking","goalkeeping_positioning","goalkeeping_reflexes"]
-    if type(player)==str:
-        main_player_vector = get_player_vector(data, player)
-    else:
-        main_player_vector = player
-    for index, row in data.iterrows():
-        player_vector = row[vector_keys].get_values()
-        player_vector = [float(x) for x in player_vector]
-        distance = distance_callback(main_player_vector, player_vector)
-        data.at[index, "distance"] = distance
-    return data.sort_values("distance", ascending = True).head(n)
-
-def gradient_embedding(data, name1, name2, alpha):
-    player1_vector = get_player_vector(data, name1)
-    player2_vector = get_player_vector(data, name2)
-    interpolated_vector = alpha * player1_vector + (1 - alpha) * player2_vector
-    return interpolated_vector
-
-def interpolated_players(data, name1, name2, alpha_range=10):
-    df = data.drop(data[data.short_name == name1].index)
-    df = df.drop(df[df.short_name == name2].index)
-    alphas = numpy.linspace(1, 0, alpha_range, endpoint=False)
-    print(alphas)
-    players = []
-    for a in alphas:
-        vector = gradient_embedding(data, name1, name2, a)
-        player = find_similar_players(df, vector, n=10).iloc[[1]]
-        players.append(player.short_name.get_values())
-        print(player.short_name.get_values()[0])
-    return players
-
-def render_latex(formula, fontsize=12, dpi=300):
-    """Renders LaTeX formula into Streamlit."""
-    fig = plt.figure()
-    text = fig.text(0, 0, '$%s$' % formula, fontsize=fontsize)
-
-    fig.savefig(BytesIO(), dpi=dpi)  # triggers rendering
-
-    bbox = text.get_window_extent()
-    width, height = bbox.size / float(dpi) + 0.05
-    fig.set_size_inches((width, height))
-
-    dy = (bbox.ymin / float(dpi)) / height
-    text.set_position((0, -dy))
-
-    buffer = BytesIO()
-    fig.savefig(buffer, dpi=dpi, format='jpg')
-    plt.close(fig)
-
-    streamlit.image(buffer)
 
 
 """
@@ -118,24 +93,25 @@ print(scipy.spatial.distance.euclidean(player_1, player_3))
 """
 ### Find similar player
 """
-player = streamlit.selectbox("Players", player_vectors["short_name"].unique()[0:100], key="player")
-streamlit.write(find_similar_players(player_vectors, player, scipy.spatial.distance.cosine, 10))
+player = streamlit.selectbox("Players", player_vectors[name_column].unique(), key="player")
+streamlit.write(similar_engine.find_similar_players(player, scipy.spatial.distance.cosine, 10))
 
 """
 ### Gradient embedding
 """
  
-player_1 = streamlit.selectbox("Players", player_vectors["short_name"].unique()[0:100], key="player_1")
-player_2 = streamlit.selectbox("Players", player_vectors["short_name"].unique()[0:100], key="player_2")
+player_1 = streamlit.selectbox("Players", player_vectors[name_column].unique(), key="player_1")
+player_2 = streamlit.selectbox("Players", player_vectors[name_column].unique(), key="player_2")
 gradient = streamlit.slider("Gradient rate", 0.0, 1.0, 0.1)
-similar = gradient_embedding(player_vectors, player_1, player_2, gradient)
-streamlit.write(find_similar_players(player_vectors, similar, scipy.spatial.distance.cosine, 10))
+similar = similar_engine.gradient_embedding(player_1, player_2, gradient)
+streamlit.write(similar_engine.find_similar_players(similar, scipy.spatial.distance.cosine, 10))
 
 """
 ### Interpolated Players
 """
 
-streamlit.write(interpolated_players(player_vectors, "Santi Cazorla", "P. Pogba"))
+if streamlit.button("Compute interpolated players"):
+    streamlit.write(similar_engine.interpolated_players(player_1, player_2))
 
 """
 ## Ressources
