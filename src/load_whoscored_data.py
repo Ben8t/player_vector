@@ -1,7 +1,15 @@
+"""load_who_scored_data.py
+This script can be ran to load, merge and clean data
+"""
 import numpy
 import pandas
 
 def load_merge_data():
+    """Load and merge WhoScored data
+
+    Returns:
+        pandas.Dataframe: a dataframe with all data merged
+    """
     bundesliga_2018_2019_off = pandas.read_csv("data/bundesliga_2018_2019_off.csv")
     bundesliga_2018_2019_off["league"] = "bundesliga"
     premier_league_2018_2019_off = pandas.read_csv("data/premier_league_2018_2019_off.csv")
@@ -49,7 +57,14 @@ def clean_text(data):
     return data.replace(",", "")
 
 def clean_data(data):
+    """Clean WhoScored data
 
+    Args:
+        data (pandas.Dataframe): data
+
+    Returns:
+        pandas.Dataframe: all data with selected columns
+    """
     data["apparitions"] = data["apps_y"].apply(clean_apparition)
     data["minutes"] = data["minutes_y"]
     data["goals"] = data["goals"].apply(clean_float)
