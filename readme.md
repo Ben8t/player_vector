@@ -7,4 +7,4 @@
 
 ## Run
 
-`docker container run --rm -p 8501=8501 -v $(pwd):/data player_vector`
+`docker container run --rm -p 8501:8501 -v $(pwd):/data player_vector`

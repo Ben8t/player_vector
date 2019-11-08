@@ -83,12 +83,12 @@ class SimilarEngine:
         Returns:
             pandas.DataFrame: players
         """
-        df = self.__data.drop(self.__data[self.__data[name_column] == player1].index)
-        df = df.drop(df[df[name_column] == player2].index)
+        df = self.__data.drop(self.__data[self.__data[self.__name_column] == player1].index)
+        df = df.drop(df[df[self.__name_column] == player2].index)
         alphas = numpy.linspace(1, 0, alpha_range, endpoint=False)
         players = []
         for a in alphas:
             vector = self.gradient_embedding(player1, player2, a)
             player = self.find_similar_players(vector, n=10).iloc[[1]]
-            players.append(player[name_column].get_values())
+            players.append(player[self.__name_column].get_values())
         return pandas.DataFrame(players)
