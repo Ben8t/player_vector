@@ -12,14 +12,11 @@ from src.similarity import SimilarEngine
 # Player Similarity
 
 ## Load and process data
-
-Data come from [Fifa 20 player database](https://www.kaggle.com/stefanoleone992/fifa-20-complete-player-dataset#players_20.csv). While it's quite difficult
-to gather a huge player database with features (mainly stats) to define players, Fifa player base can be a good starting point.
-
 """
 
 fifa_data = pandas.read_csv("data/players_20.csv")
 whoscored_data = pandas.read_csv("data/full_2018_2019.csv")
+football_manager_data = pandas.read_csv("data/football_manager_2017.csv")
 
 @streamlit.cache(persist=True)
 def process_fifa_data(data):
@@ -44,19 +41,33 @@ def process_whoscored_data(data):
     data["component_1"], data["component_2"] = pca.transform(data[features])[:,0], pca.transform(data[features])[:,1]
     return data.copy()[["player", "team", "age", "league"] + features], pca.explained_variance_ratio_
 
+@streamlit.cache(persist=True)
+def process_football_manager_data(data):
+    features = ["Height", "Weight", "AerialAbility", "CommandOfArea", "Communication", "Eccentricity", "Handling", "Kicking", "OneOnOnes", "Reflexes", "RushingOut", "TendencyToPunch", "Throwing", "Corners", "Crossing", "Dribbling", "Finishing", "FirstTouch", "Freekicks", "Heading", "LongShots", "Longthrows", "Marking", "Passing", "PenaltyTaking", "Tackling" ,"Technique", "Aggression", "Anticipation", "Bravery", "Composure", "Concentration", "Vision", "Decisions", "Determination", "Flair", "Leadership", "OffTheBall", "Positioning", "Teamwork", "Workrate", "Acceleration", "Agility", "Balance", "Jumping", "LeftFoot", "NaturalFitness", "Pace", "RightFoot", "Stamina", "Strength", "Consistency", "Dirtiness", "ImportantMatches", "InjuryProness", "Versatility", "Adaptability", "Ambition", "Loyalty", "Pressure", "Professional", "Sportsmanship", "Temperament", "Controversy"]
+    processed_data = data.copy()
+    processed_data = processed_data.query('IntCaps > 0')
+    processed_data[features] = processed_data[features].apply(preprocessing.scale)
+    pca = PCA(n_components=2)
+    pca.fit(processed_data[features])
+    processed_data["component_1"], processed_data["component_2"] = pca.transform(processed_data[features])[:,0], pca.transform(processed_data[features])[:,1]
+    return processed_data.copy()[["Name", "Age"] + features], pca.explained_variance_ratio_
 
 """
 Load data
 """
-data_to_load = streamlit.radio("Data to load", ["Fifa", "WhoScored"])
+data_to_load = streamlit.radio("Data to load", ["Fifa", "WhoScored", "Football Manager"])
 if data_to_load == "Fifa":
     player_vectors, pca_result = process_fifa_data(fifa_data)
     vector_keys = ["weight_kg", "height_cm", "pace", "shooting","passing","dribbling","defending","physic","gk_diving","gk_handling","gk_kicking","gk_reflexes","gk_speed", "gk_positioning","attacking_crossing","attacking_finishing","attacking_heading_accuracy","attacking_short_passing","attacking_volleys","skill_dribbling","skill_curve","skill_fk_accuracy","skill_long_passing","skill_ball_control","movement_acceleration","movement_sprint_speed","movement_agility","movement_reactions","movement_balance","power_shot_power","power_jumping","power_stamina","power_strength","power_long_shots","mentality_aggression","mentality_interceptions","mentality_positioning","mentality_vision","mentality_penalties","mentality_composure","defending_marking","defending_standing_tackle","defending_sliding_tackle","goalkeeping_diving","goalkeeping_handling","goalkeeping_kicking","goalkeeping_positioning","goalkeeping_reflexes"]
     name_column = "short_name"
-else:
+elif data_to_load == "WhoScored":
     player_vectors, pca_result = process_whoscored_data(whoscored_data)
     vector_keys = ["goals", "assists", "shot_per_game", "key_passes_per_game", "dribbles_per_game", "fouled_per_game", "offside_per_game", "dispossessed_per_game", "bad_control_per_game", "tackles_per_game", "interception_per_game", "fouls_per_game", "offsides_per_game", "clear_per_game", "dribbled_past_per_game", "blocks_per_game", "own_goal"]
     name_column = "player"
+else:
+    player_vectors, pca_result = process_football_manager_data(football_manager_data)
+    vector_keys = ["Height", "Weight", "AerialAbility", "CommandOfArea", "Communication", "Eccentricity", "Handling", "Kicking", "OneOnOnes", "Reflexes", "RushingOut", "TendencyToPunch", "Throwing", "Corners", "Crossing", "Dribbling", "Finishing", "FirstTouch", "Freekicks", "Heading", "LongShots", "Longthrows", "Marking", "Passing", "PenaltyTaking", "Tackling" ,"Technique", "Aggression", "Anticipation", "Bravery", "Composure", "Concentration", "Vision", "Decisions", "Determination", "Flair", "Leadership", "OffTheBall", "Positioning", "Teamwork", "Workrate", "Acceleration", "Agility", "Balance", "Jumping", "LeftFoot", "NaturalFitness", "Pace", "RightFoot", "Stamina", "Strength", "Consistency", "Dirtiness", "ImportantMatches", "InjuryProness", "Versatility", "Adaptability", "Ambition", "Loyalty", "Pressure", "Professional", "Sportsmanship", "Temperament", "Controversy"]
+    name_column = "Name"
 
 similar_engine = SimilarEngine(player_vectors, vector_keys, name_column)
 
@@ -94,7 +105,8 @@ print(scipy.spatial.distance.euclidean(player_1, player_3))
 ### Find similar player
 """
 player = streamlit.selectbox("Players", player_vectors[name_column].unique(), key="player")
-streamlit.write(similar_engine.find_similar_players(player, scipy.spatial.distance.cosine, 10))
+if streamlit.button("Compute similarity"):
+    streamlit.write(similar_engine.find_similar_players(player, scipy.spatial.distance.cosine, 10))
 
 """
 ### Gradient embedding
@@ -104,7 +116,8 @@ player_1 = streamlit.selectbox("Players", player_vectors[name_column].unique(), 
 player_2 = streamlit.selectbox("Players", player_vectors[name_column].unique(), key="player_2")
 gradient = streamlit.slider("Gradient rate", 0.0, 1.0, 0.1)
 similar = similar_engine.gradient_embedding(player_1, player_2, gradient)
-streamlit.write(similar_engine.find_similar_players(similar, scipy.spatial.distance.cosine, 10))
+if streamlit.button("Compute gradient"):
+    streamlit.write(similar_engine.find_similar_players(similar, scipy.spatial.distance.cosine, 10))
 
 """
 ### Interpolated Players
