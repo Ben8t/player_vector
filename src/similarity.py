@@ -31,7 +31,7 @@ class SimilarEngine:
         """
         return self.__data[self.__data[self.__name_column]==player][self.__vector_keys].get_values()
 
-    def find_similar_players(self, player, distance_callback=scipy.spatial.distance.cosine, n=2):
+    def find_similar_players(self, player, distance_callback=scipy.spatial.distance.cosine, n=2, excluded_players=[]):
         """ Compute similarity for a given player
 
         Args:
@@ -43,6 +43,7 @@ class SimilarEngine:
             pandas.DataFrame: similar players
         """
         data = self.__data.copy()
+        data = data[~data[self.__name_column].isin(excluded_players)]
         if type(player)==str:
             main_player_vector = self.get_player_vector(player)
         else:

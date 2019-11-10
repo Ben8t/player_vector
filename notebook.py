@@ -117,7 +117,7 @@ player_2 = streamlit.selectbox("Players", player_vectors[name_column].unique(), 
 gradient = streamlit.slider("Gradient rate", 0.0, 1.0, 0.1)
 similar = similar_engine.gradient_embedding(player_1, player_2, gradient)
 if streamlit.button("Compute gradient"):
-    streamlit.write(similar_engine.find_similar_players(similar, scipy.spatial.distance.cosine, 10))
+    streamlit.write(similar_engine.find_similar_players(similar, scipy.spatial.distance.cosine, 10, [player_1, player_2]))
 
 """
 ### Interpolated Players
