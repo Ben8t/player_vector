@@ -90,6 +90,6 @@ class SimilarEngine:
         players = []
         for a in alphas:
             vector = self.gradient_embedding(player1, player2, a)
-            player = self.find_similar_players(vector, n=10).iloc[[1]]
+            player = self.find_similar_players(vector, n=10, excluded_players=[player1, player2]).iloc[[1]]
             players.append(player[self.__name_column].get_values())
         return pandas.DataFrame(players)
