@@ -46,6 +46,8 @@ class SimilarEngine:
         data = data[~data[self.__name_column].isin(excluded_players)]
         if type(player)==str:
             main_player_vector = self.get_player_vector(player)
+            if len(main_player_vector) > 1:
+                main_player_vector = main_player_vector[0]
         else:
             main_player_vector = player
         for index, row in data.iterrows():

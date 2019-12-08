@@ -105,7 +105,7 @@ print(scipy.spatial.distance.euclidean(player_1, player_3))
 ### Find similar player
 """
 player = streamlit.selectbox("Players", player_vectors[name_column].unique(), key="player")
-if streamlit.button("Compute similarity"):
+if streamlit.button("Compute similarity"):  
     streamlit.write(similar_engine.find_similar_players(player, scipy.spatial.distance.cosine, 10))
 
 """
